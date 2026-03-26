@@ -25,9 +25,12 @@ function getStripe() {
   if (!stripeInstance) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) {
+      console.error('STRIPE_SECRET_KEY is missing');
       throw new Error('STRIPE_SECRET_KEY environment variable is missing. Please set it in the Settings menu.');
     }
-    stripeInstance = new Stripe(key);
+    stripeInstance = new Stripe(key, {
+      apiVersion: '2025-02-24.acacia' as any, // Use a recent stable version
+    });
   }
   return stripeInstance;
 }
@@ -110,6 +113,8 @@ async function startServer() {
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
 
+  console.log('Starting server with APP_URL:', process.env.APP_URL || 'http://localhost:3000');
+
   const broadcast = (data: any) => {
     const message = JSON.stringify(data);
     wss.clients.forEach((client) => {
@@ -173,6 +178,7 @@ async function startServer() {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!sig || !webhookSecret) {
+      console.error('Stripe webhook error: Missing signature or secret', { sig: !!sig, secret: !!webhookSecret });
       return res.status(400).send('Webhook Error: Missing signature or secret');
     }
 
@@ -180,6 +186,7 @@ async function startServer() {
     try {
       const stripe = getStripe();
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      console.log('Stripe webhook event received:', event.type);
     } catch (err: any) {
       console.error('Webhook signature verification failed:', err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -190,15 +197,25 @@ async function startServer() {
       const userId = session.metadata?.userId;
       const amount = session.amount_total ? session.amount_total / 100 : 0;
 
+      console.log(`Processing checkout.session.completed for user ${userId}, amount ${amount}`);
+
       if (userId && amount > 0) {
-        db.transaction(() => {
-          const user: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(userId);
-          const newBalance = user.balance + amount;
-          db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(newBalance, userId);
-          db.prepare('INSERT INTO transactions (user_id, type, amount, method, details, status) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(userId, 'DEPOSIT', amount, 'STRIPE', JSON.stringify({ sessionId: session.id }), 'COMPLETED');
-        })();
-        console.log(`Stripe deposit successful for user ${userId}: $${amount}`);
+        try {
+          db.transaction(() => {
+            const user: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(userId);
+            if (!user) {
+              console.error(`User ${userId} not found during webhook processing`);
+              return;
+            }
+            const newBalance = user.balance + amount;
+            db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(newBalance, userId);
+            db.prepare('INSERT INTO transactions (user_id, type, amount, method, details, status) VALUES (?, ?, ?, ?, ?, ?)')
+              .run(userId, 'DEPOSIT', amount, 'STRIPE', JSON.stringify({ sessionId: session.id }), 'COMPLETED');
+          })();
+          console.log(`Stripe deposit successful for user ${userId}: $${amount}`);
+        } catch (dbErr: any) {
+          console.error('Database error during Stripe webhook processing:', dbErr.message);
+        }
       }
     }
 
@@ -383,6 +400,9 @@ async function startServer() {
 
     try {
       const stripe = getStripe();
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      console.log(`Creating Stripe session for user ${userEmail} with amount ${amount} and appUrl ${appUrl}`);
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -399,17 +419,18 @@ async function startServer() {
           },
         ],
         mode: 'payment',
-        success_url: `${process.env.APP_URL || 'http://localhost:3000'}/api/stripe/callback?status=success`,
-        cancel_url: `${process.env.APP_URL || 'http://localhost:3000'}/api/stripe/callback?status=cancel`,
+        success_url: `${appUrl}/api/stripe/callback?status=success`,
+        cancel_url: `${appUrl}/api/stripe/callback?status=cancel`,
         customer_email: userEmail,
         metadata: {
           userId: userId.toString(),
         },
       });
 
+      console.log('Stripe session created successfully:', session.id);
       res.json({ url: session.url });
     } catch (err: any) {
-      console.error('Stripe session error:', err.message);
+      console.error('Stripe session error:', err.message, err.stack);
       res.status(500).json({ error: err.message || 'Failed to create payment session' });
     }
   });

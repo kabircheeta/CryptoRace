@@ -325,8 +325,9 @@ export default function App() {
       } else {
         setError(data.error || "Failed to initiate Stripe payment");
       }
-    } catch (e) {
-      setError("Stripe deposit failed");
+    } catch (e: any) {
+      console.error("Stripe error:", e);
+      setError(e.message || "Stripe deposit failed");
     } finally {
       setLoading(false);
     }
