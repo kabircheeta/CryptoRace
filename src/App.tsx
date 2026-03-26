@@ -615,19 +615,19 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#050505] text-white flex flex-col">
         <header className="border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-white/60 hover:text-white transition-colors">
-              <ArrowLeft size={20} />
-              <span>Back to Dashboard</span>
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+            <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-white/60 hover:text-white transition-colors text-sm md:text-base">
+              <ArrowLeft size={18} />
+              <span>Back</span>
             </button>
-            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-              <Wallet size={18} className="text-emerald-400" />
-              <span className="font-mono font-bold text-emerald-400">{formatCurrency(user?.balance || 0)}</span>
+            <div className="flex items-center gap-2 md:gap-3 bg-white/5 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl border border-white/10">
+              <Wallet size={16} className="text-emerald-400" />
+              <span className="font-mono font-bold text-emerald-400 text-sm md:text-base">{formatCurrency(user?.balance || 0)}</span>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 max-w-3xl mx-auto w-full p-6 py-12">
+        <main className="flex-1 max-w-3xl mx-auto w-full p-4 md:p-6 py-8 md:py-12">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h2 className="text-4xl font-black mb-2">WITHDRAW FUNDS</h2>
             <p className="text-white/50 mb-12">Withdraw your winnings to your bank account or PayPal. Min: {formatCurrency(5)}, Max: {formatCurrency(500)}.</p>
@@ -777,19 +777,19 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#050505] text-white flex flex-col">
         <header className="border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-white/60 hover:text-white transition-colors">
-              <ArrowLeft size={20} />
-              <span>Back to Dashboard</span>
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+            <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-white/60 hover:text-white transition-colors text-sm md:text-base">
+              <ArrowLeft size={18} />
+              <span>Back</span>
             </button>
-            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-              <Wallet size={18} className="text-emerald-400" />
-              <span className="font-mono font-bold text-emerald-400">{formatCurrency(user?.balance || 0)}</span>
+            <div className="flex items-center gap-2 md:gap-3 bg-white/5 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl border border-white/10">
+              <Wallet size={16} className="text-emerald-400" />
+              <span className="font-mono font-bold text-emerald-400 text-sm md:text-base">{formatCurrency(user?.balance || 0)}</span>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 max-w-3xl mx-auto w-full p-6 py-12">
+        <main className="flex-1 max-w-3xl mx-auto w-full p-4 md:p-6 py-8 md:py-12">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h2 className="text-4xl font-black mb-2">DEPOSIT FUNDS</h2>
             <p className="text-white/50 mb-12">Choose your preferred payment method and amount to top up your account.</p>
@@ -1042,28 +1042,36 @@ export default function App() {
     <div className="min-h-screen bg-[#050505] text-white flex flex-col">
       {/* Top Bar */}
       <header className="border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Zap size={24} />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-bold tracking-tight leading-none">CRYPTO RACE</span>
-              <div className="flex items-center gap-3 mt-1">
-                <div className="flex items-center gap-1 text-[10px] font-mono text-orange-500/80">
-                  <Bitcoin size={10} />
-                  <span>{prices.BTC > 0 ? formatCurrency(prices.BTC) : '---'}</span>
-                </div>
-                <div className="flex items-center gap-1 text-[10px] font-mono text-blue-400/80">
-                  <Coins size={10} />
-                  <span>{prices.ETH > 0 ? formatCurrency(prices.ETH) : '---'}</span>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
+          <div className="flex items-center justify-between w-full md:w-auto gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-lg md:rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Zap size={20} className="md:w-6 md:h-6" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-lg md:text-xl font-bold tracking-tight leading-none">CRYPTO RACE</span>
+                <div className="hidden md:flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-orange-500/80">
+                    <Bitcoin size={10} />
+                    <span>{prices.BTC > 0 ? formatCurrency(prices.BTC) : '---'}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-blue-400/80">
+                    <Coins size={10} />
+                    <span>{prices.ETH > 0 ? formatCurrency(prices.ETH) : '---'}</span>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Mobile Balance */}
+            <div className="flex md:hidden items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+              <Wallet size={14} className="text-emerald-400" />
+              <span className="font-mono font-bold text-emerald-400 text-sm">{formatCurrency(user?.balance || 0)}</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-6">
+            <div className="flex items-center gap-2 flex-1 md:flex-none">
               <select 
                 value={currency}
                 onChange={(e) => {
@@ -1073,30 +1081,32 @@ export default function App() {
                     setCurrencySymbol(selected.symbol);
                   }
                 }}
-                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500/50"
               >
                 {currencies.map(c => (
-                  <option key={c.code} value={c.code} className="bg-[#050505]">{c.code} ({c.symbol})</option>
+                  <option key={c.code} value={c.code} className="bg-[#050505]">{c.code}</option>
                 ))}
               </select>
-              <button 
-                onClick={() => setView('deposit')}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all text-sm font-bold"
-              >
-                <Zap size={14} /> DEPOSIT
-              </button>
-              <button 
-                onClick={() => {
-                  setPaymentMethod('bank');
-                  setView('withdraw');
-                }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-all text-sm font-bold"
-              >
-                <ArrowDownCircle size={14} /> WITHDRAW
-              </button>
+              <div className="flex items-center gap-1 flex-1 md:flex-none">
+                <button 
+                  onClick={() => setView('deposit')}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all text-[10px] md:text-sm font-bold"
+                >
+                  <Zap size={12} className="md:w-3.5 md:h-3.5" /> DEPOSIT
+                </button>
+                <button 
+                  onClick={() => {
+                    setPaymentMethod('bank');
+                    setView('withdraw');
+                  }}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-all text-[10px] md:text-sm font-bold"
+                >
+                  <ArrowDownCircle size={12} className="md:w-3.5 md:h-3.5" /> WITHDRAW
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+            <div className="hidden md:flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
               <Wallet size={18} className="text-emerald-400" />
               <span className="font-mono font-bold text-emerald-400">{formatCurrency(user?.balance || 0)}</span>
             </div>
@@ -1104,9 +1114,9 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Game Area */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 space-y-4 md:space-y-6">
           {/* Race Track Section */}
           <CanvasRace 
             isRacing={isRacing} 
@@ -1117,61 +1127,55 @@ export default function App() {
           />
 
           {/* Betting Controls */}
-          <GlassCard className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
+          <GlassCard className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 p-4 md:p-8">
+            <div className="space-y-4 md:space-y-6">
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-3 uppercase tracking-wider">1. Select Asset</label>
-                <div className="grid grid-cols-2 gap-4">
+                <label className="block text-xs md:text-sm font-medium text-white/50 mb-3 uppercase tracking-wider">1. Select Asset</label>
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
                   <button 
                     onClick={() => setBetAsset('BTC')}
                     className={cn(
-                      "p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2",
+                      "p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center gap-2",
                       betAsset === 'BTC' ? "border-orange-500 bg-orange-500/10" : "border-white/5 bg-white/5 hover:border-white/10"
                     )}
                   >
-                    <Bitcoin className={betAsset === 'BTC' ? "text-orange-500" : "text-white/40"} size={32} />
+                    <Bitcoin className={betAsset === 'BTC' ? "text-orange-500" : "text-white/40"} size={28} />
                     <div className="text-center">
-                      <span className="font-bold block text-sm">BITCOIN</span>
-                      <span className="text-[10px] text-orange-500/80 font-mono font-bold uppercase tracking-widest">1.8x Odds</span>
-                      <div className="mt-1 text-[10px] font-mono text-white/40">
-                        ${prices.BTC > 0 ? prices.BTC.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '---'}
-                      </div>
+                      <span className="font-bold block text-xs md:text-sm">BITCOIN</span>
+                      <span className="text-[9px] md:text-[10px] text-orange-500/80 font-mono font-bold uppercase tracking-widest">1.8x Odds</span>
                     </div>
                   </button>
                   <button 
                     onClick={() => setBetAsset('ETH')}
                     className={cn(
-                      "p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 relative overflow-hidden",
+                      "p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center gap-2 relative overflow-hidden",
                       betAsset === 'ETH' ? "border-blue-500 bg-blue-500/10" : "border-white/5 bg-white/5 hover:border-white/10"
                     )}
                   >
-                    <Coins className={betAsset === 'ETH' ? "text-blue-500" : "text-white/40"} size={32} />
+                    <Coins className={betAsset === 'ETH' ? "text-blue-500" : "text-white/40"} size={28} />
                     <div className="text-center">
-                      <span className="font-bold block text-sm">ETHEREUM</span>
-                      <span className="text-[10px] text-blue-500/80 font-mono font-bold uppercase tracking-widest">1.8x Odds</span>
-                      <div className="mt-1 text-[10px] font-mono text-white/40">
-                        ${prices.ETH > 0 ? prices.ETH.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '---'}
-                      </div>
+                      <span className="font-bold block text-xs md:text-sm">ETHEREUM</span>
+                      <span className="text-[9px] md:text-[10px] text-blue-400/80 font-mono font-bold uppercase tracking-widest">1.8x Odds</span>
                     </div>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-3 uppercase tracking-wider">2. Bet Amount</label>
+                <label className="block text-xs md:text-sm font-medium text-white/50 mb-3 uppercase tracking-wider">2. Bet Amount</label>
                 <div className="relative mb-4">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-bold">{currencySymbol}</span>
                   <input 
                     type="number"
                     value={Math.round(betAmount * exchangeRate)}
                     onChange={(e) => setBetAmount(Math.max(1, Math.min(1000, Number(e.target.value) / exchangeRate)))}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl pl-8 pr-4 py-3 md:py-4 text-lg md:text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-right">
-                    <span className="block text-[10px] text-white/30 uppercase font-bold">Potential Win</span>
-                    <span className="block text-sm font-mono font-bold text-emerald-400">+{currencySymbol}{(betAmount * 0.8 * exchangeRate).toFixed(2)}</span>
+                    <span className="block text-[9px] md:text-[10px] text-white/30 uppercase font-bold">Potential Win</span>
+                    <span className="block text-xs md:text-sm font-mono font-bold text-emerald-400">+{currencySymbol}{(betAmount * 0.8 * exchangeRate).toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
@@ -1179,7 +1183,7 @@ export default function App() {
                     <button 
                       key={amt}
                       onClick={() => setBetAmount(amt)}
-                      className="py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm font-bold"
+                      className="py-2 rounded-lg md:rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-[10px] md:text-sm font-bold"
                     >
                       {currencySymbol}{Math.round(amt * exchangeRate)}
                     </button>
@@ -1190,7 +1194,7 @@ export default function App() {
               <Button 
                 onClick={placeBet}
                 disabled={isRacing || !user || betAmount > user.balance}
-                className="w-full py-5 text-xl rounded-2xl"
+                className="w-full py-4 md:py-6 text-lg md:text-xl font-black italic tracking-tighter rounded-xl md:rounded-2xl shadow-xl shadow-blue-500/20"
                 variant="primary"
               >
                 {isRacing ? 'RACING...' : 'PLACE BET'}
@@ -1257,34 +1261,34 @@ export default function App() {
         </div>
 
         {/* Right Column: Stats & History */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-4 md:space-y-6">
           {/* Leaderboard */}
           <GlassCard className="p-0 overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center gap-2">
-              <Trophy size={20} className="text-yellow-400" />
-              <h3 className="font-bold uppercase tracking-wider">Top Racers</h3>
+            <div className="p-4 md:p-6 border-b border-white/5 flex items-center gap-2">
+              <Trophy size={18} className="text-yellow-400 md:w-5 md:h-5" />
+              <h3 className="text-sm md:text-base font-bold uppercase tracking-wider">Top Racers</h3>
             </div>
             <div className="divide-y divide-white/5">
               {leaderboardLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="px-6 py-4 flex items-center justify-between">
+                  <div key={i} className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Skeleton className="w-4 h-4" />
-                      <Skeleton className="w-24 h-4" />
+                      <Skeleton className="w-20 md:w-24 h-4" />
                     </div>
-                    <Skeleton className="w-16 h-4" />
+                    <Skeleton className="w-12 md:w-16 h-4" />
                   </div>
                 ))
               ) : (
                 leaderboard.map((entry, i) => (
-                  <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <span className="text-white/30 font-mono w-4">{i + 1}</span>
-                      <span className="text-sm font-medium truncate max-w-[120px]">
+                  <div key={i} className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <span className="text-white/30 font-mono w-4 text-xs md:text-sm">{i + 1}</span>
+                      <span className="text-xs md:text-sm font-medium truncate max-w-[100px] md:max-w-[120px]">
                         {entry.email.startsWith('guest_') ? `Guest #${entry.email.split('_')[1].split('@')[0]}` : entry.email}
                       </span>
                     </div>
-                    <span className="font-mono text-emerald-400 font-bold">{formatCurrency(entry.balance)}</span>
+                    <span className="font-mono text-emerald-400 font-bold text-xs md:text-sm">{formatCurrency(entry.balance)}</span>
                   </div>
                 ))
               )}
@@ -1293,46 +1297,46 @@ export default function App() {
 
           {/* History */}
           <GlassCard className="p-0 overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center gap-2">
-              <History size={20} className="text-blue-400" />
-              <h3 className="font-bold uppercase tracking-wider">Recent Bets</h3>
+            <div className="p-4 md:p-6 border-b border-white/5 flex items-center gap-2">
+              <History size={18} className="text-blue-400 md:w-5 md:h-5" />
+              <h3 className="text-sm md:text-base font-bold uppercase tracking-wider">Recent Bets</h3>
             </div>
-            <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
+            <div className="divide-y divide-white/5 max-h-[300px] md:max-h-[400px] overflow-y-auto">
               {historyLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="px-6 py-4 flex items-center justify-between">
+                  <div key={i} className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
                     <div className="space-y-2">
-                      <Skeleton className="w-24 h-4" />
-                      <Skeleton className="w-16 h-3" />
+                      <Skeleton className="w-20 md:w-24 h-4" />
+                      <Skeleton className="w-12 md:w-16 h-3" />
                     </div>
                     <div className="text-right space-y-2">
-                      <Skeleton className="w-12 h-4 ml-auto" />
-                      <Skeleton className="w-16 h-3 ml-auto" />
+                      <Skeleton className="w-10 md:w-12 h-4 ml-auto" />
+                      <Skeleton className="w-12 md:w-16 h-3 ml-auto" />
                     </div>
                   </div>
                 ))
               ) : history.length === 0 ? (
-                <div className="p-12 text-center text-white/30 text-sm">No bets yet</div>
+                <div className="p-8 md:p-12 text-center text-white/30 text-xs md:text-sm">No bets yet</div>
               ) : (
                 history.map((bet) => (
-                  <div key={bet.id} className="px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">
+                  <div key={bet.id} className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                    <div className="flex flex-col overflow-hidden">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <span className="text-xs md:text-sm font-bold truncate max-w-[100px] md:max-w-[120px]">
                           {bet.email.startsWith('guest_') ? `Guest #${bet.email.split('_')[1].split('@')[0]}` : bet.email}
                         </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-white/40 uppercase tracking-tighter">{bet.asset}</span>
+                        <span className="text-[8px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded bg-white/5 text-white/40 uppercase tracking-tighter">{bet.asset}</span>
                       </div>
-                      <span className="text-xs text-white/30">{new Date(bet.timestamp).toLocaleTimeString()}</span>
+                      <span className="text-[10px] md:text-xs text-white/30">{new Date(bet.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div className="text-right">
                       <div className={cn(
-                        "font-mono font-bold",
+                        "font-mono font-bold text-xs md:text-sm",
                         bet.outcome === 'WIN' ? "text-emerald-400" : "text-red-400"
                       )}>
                         {bet.outcome === 'WIN' ? '+' : ''}{formatCurrency(bet.profit)}
                       </div>
-                      <div className="text-[10px] text-white/30 uppercase">Bet: {formatCurrency(bet.amount)}</div>
+                      <div className="text-[8px] md:text-[10px] text-white/30 uppercase">Bet: {formatCurrency(bet.amount)}</div>
                     </div>
                   </div>
                 ))
