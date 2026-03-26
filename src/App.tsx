@@ -118,8 +118,7 @@ const Button = ({
 // --- Main App ---
 
 export default function App() {
-  const [view, setView] = useState<'landing' | 'auth' | 'dashboard' | 'deposit' | 'withdraw'>('landing');
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [view, setView] = useState<'dashboard' | 'deposit' | 'withdraw'>('dashboard');
   const [user, setUser] = useState<UserData | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [loading, setLoading] = useState(false);
@@ -247,11 +246,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (token) {
-      fetchUser();
-      fetchLinkedAccounts();
-      if (view === 'landing' || view === 'auth') setView('dashboard');
-    }
+    const initAuth = async () => {
+      if (!token) {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/auth/guest', { method: 'POST' });
+          const data = await res.json();
+          if (res.ok) {
+            localStorage.setItem('token', data.token);
+            setToken(data.token);
+            setUser(data.user);
+          }
+        } catch (e) {
+          console.error("Guest login failed", e);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        fetchUser();
+        fetchLinkedAccounts();
+      }
+    };
+    initAuth();
   }, [token]);
 
   useEffect(() => {
@@ -341,10 +357,12 @@ export default function App() {
         fetchHistory();
         fetchLeaderboard();
       } else {
-        logout();
+        localStorage.removeItem('token');
+        setToken(null);
       }
     } catch (e) {
-      logout();
+      localStorage.removeItem('token');
+      setToken(null);
     }
   };
 
@@ -481,51 +499,6 @@ export default function App() {
 
   const totalWinnings = history.reduce((acc, bet) => acc + (bet.outcome === 'WIN' ? bet.profit : 0), 0);
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    setView('landing');
-  };
-
-  const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email');
-    const password = formData.get('password');
-    const confirmPassword = formData.get('confirmPassword');
-
-    if (authMode === 'signup' && password !== confirmPassword) {
-      setError("Passwords don't match");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem('token', data.token);
-        setToken(data.token);
-        setUser(data.user);
-        setView('dashboard');
-      } else {
-        setError(data.error);
-      }
-    } catch (e) {
-      setError("Connection failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const placeBet = async () => {
     if (!user || betAmount > user.balance || isRacing) return;
 
@@ -636,153 +609,6 @@ export default function App() {
   };
 
   // --- Render Views ---
-
-  if (view === 'landing') {
-    return (
-      <div className="min-h-screen bg-[#050505] text-white overflow-hidden relative flex flex-col items-center justify-center p-6">
-        {/* Background Animation */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div 
-            animate={{ 
-              y: [0, -20, 0],
-              rotate: [0, 5, 0]
-            }}
-            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-1/4 left-1/4 opacity-20"
-          >
-            <Bitcoin size={120} className="text-orange-500" />
-          </motion.div>
-          <motion.div 
-            animate={{ 
-              y: [0, 20, 0],
-              rotate: [0, -5, 0]
-            }}
-            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-1/4 right-1/4 opacity-20"
-          >
-            <Coins size={100} className="text-blue-400" />
-          </motion.div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.1),transparent_70%)]" />
-        </div>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative z-10 text-center max-w-3xl"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-8">
-            <Zap size={16} />
-            <span>First Loss Fully Returned – Only for New Users</span>
-          </div>
-          
-          <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent">
-            CRYPTO RACE<br />PREDICTION
-          </h1>
-          
-          <p className="text-xl text-white/60 mb-12 max-w-xl mx-auto">
-            The ultimate high-stakes arena. Predict whether Bitcoin or Ethereum will dominate the next short-timed race.
-          </p>
-
-          <Button 
-            onClick={() => setView('auth')}
-            className="text-xl px-12 py-4 rounded-2xl group"
-          >
-            START RACING
-            <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </motion.div>
-
-        <div className="absolute bottom-12 left-0 right-0 flex justify-center gap-12 opacity-30">
-          <div className="flex items-center gap-2"><ShieldCheck size={20} /> Secure Platform</div>
-          <div className="flex items-center gap-2"><TrendingUp size={20} /> Real-time Data</div>
-          <div className="flex items-center gap-2"><Wallet size={20} /> Instant Payouts</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'auth') {
-    return (
-      <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.1),transparent_50%)]" />
-        
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md relative z-10"
-        >
-          <GlassCard className="p-8">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-2">{authMode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
-              <p className="text-white/50">Enter your details to access the race track</p>
-            </div>
-
-            <form onSubmit={handleAuth} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-1.5">Email Address</label>
-                <input 
-                  name="email"
-                  type="email" 
-                  required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50"
-                  placeholder="name@example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-1.5">Password</label>
-                <input 
-                  name="password"
-                  type="password" 
-                  required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50"
-                  placeholder="••••••••"
-                />
-              </div>
-              {authMode === 'signup' && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                  <label className="block text-sm font-medium text-white/70 mb-1.5">Confirm Password</label>
-                  <input 
-                    name="confirmPassword"
-                    type="password" 
-                    required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50"
-                    placeholder="••••••••"
-                  />
-                </motion.div>
-              )}
-
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl flex items-center gap-2 text-sm">
-                  <AlertCircle size={16} />
-                  {error}
-                </div>
-              )}
-
-              <Button loading={loading} className="w-full py-4 text-lg">
-                {authMode === 'login' ? 'Sign In' : 'Sign Up'}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <button 
-                onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
-                className="text-white/50 hover:text-white transition-colors text-sm"
-              >
-                {authMode === 'login' ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-              </button>
-            </div>
-          </GlassCard>
-          
-          <button 
-            onClick={() => setView('landing')}
-            className="mt-8 mx-auto flex items-center gap-2 text-white/40 hover:text-white transition-colors"
-          >
-            ← Back to Home
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (view === 'withdraw') {
     return (
@@ -1273,15 +1099,6 @@ export default function App() {
               <Wallet size={18} className="text-emerald-400" />
               <span className="font-mono font-bold text-emerald-400">{formatCurrency(user?.balance || 0)}</span>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" className="p-2 rounded-full">
-                <User size={20} />
-              </Button>
-              <Button onClick={logout} variant="ghost" className="p-2 rounded-full text-red-400 hover:text-red-300">
-                <LogOut size={20} />
-              </Button>
-            </div>
           </div>
         </div>
       </header>
@@ -1411,7 +1228,9 @@ export default function App() {
                           {activity.asset === 'BTC' ? <Bitcoin size={20} /> : <Coins size={20} />}
                         </div>
                         <div>
-                          <p className="text-sm font-bold">{activity.email}</p>
+                          <p className="text-sm font-bold">
+                            {activity.email.startsWith('guest_') ? `Guest #${activity.email.split('_')[1].split('@')[0]}` : activity.email}
+                          </p>
                           <p className="text-[10px] text-white/40 uppercase tracking-wider">
                             Bet {formatCurrency(activity.amount)} on {activity.asset}
                           </p>
@@ -1460,7 +1279,9 @@ export default function App() {
                   <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
                     <div className="flex items-center gap-3">
                       <span className="text-white/30 font-mono w-4">{i + 1}</span>
-                      <span className="text-sm font-medium truncate max-w-[120px]">{entry.email}</span>
+                      <span className="text-sm font-medium truncate max-w-[120px]">
+                        {entry.email.startsWith('guest_') ? `Guest #${entry.email.split('_')[1].split('@')[0]}` : entry.email}
+                      </span>
                     </div>
                     <span className="font-mono text-emerald-400 font-bold">{formatCurrency(entry.balance)}</span>
                   </div>
@@ -1496,7 +1317,9 @@ export default function App() {
                   <div key={bet.id} className="px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors">
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{bet.email}</span>
+                        <span className="text-sm font-bold">
+                          {bet.email.startsWith('guest_') ? `Guest #${bet.email.split('_')[1].split('@')[0]}` : bet.email}
+                        </span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-white/40 uppercase tracking-tighter">{bet.asset}</span>
                       </div>
                       <span className="text-xs text-white/30">{new Date(bet.timestamp).toLocaleTimeString()}</span>

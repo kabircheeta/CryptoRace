@@ -245,6 +245,20 @@ async function startServer() {
 
   // --- API Routes ---
 
+  app.post('/api/auth/guest', async (req, res) => {
+    const guestId = Math.floor(Math.random() * 1000000);
+    const email = `guest_${guestId}@guest.com`;
+    const password = await bcrypt.hash('guest-password', 10);
+    
+    try {
+      const info = db.prepare('INSERT INTO users (email, password, is_verified) VALUES (?, ?, 1)').run(email, password);
+      const token = jwt.sign({ id: info.lastInsertRowid, email }, JWT_SECRET);
+      res.json({ token, user: { id: info.lastInsertRowid, email, balance: 1000 } });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to create guest user' });
+    }
+  });
+
   // Auth
   app.post('/api/auth/send-otp', async (req, res) => {
     let { email } = req.body;
