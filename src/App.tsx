@@ -36,6 +36,7 @@ import confetti from 'canvas-confetti';
 import CanvasRace from './components/CanvasRace';
 import { GlassCard, Button, Skeleton, cn } from './components/ui';
 import AdminPanel from './components/AdminPanel';
+import Login from './components/Login';
 
 // --- Types ---
 interface UserData {
@@ -1323,17 +1324,8 @@ export default function App() {
       }
 
       if (!token) {
-        try {
-          const res = await fetch('/api/auth/guest', { method: 'POST' });
-          const data = await res.json();
-          if (res.ok) {
-            localStorage.setItem('token', data.token);
-            setToken(data.token);
-            setUser(data.user);
-          }
-        } catch (e) {
-          console.error("Guest login failed", e);
-        }
+        // No token, just stop loading
+        return;
       } else {
         fetchUser();
       }
@@ -1345,6 +1337,10 @@ export default function App() {
     const converted = amount * exchangeRate;
     return `${currencySymbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+
+  if (!token || !user) {
+    return <Login onLogin={(t, u) => { setToken(t); setUser(u); }} />;
+  }
 
   return (
     <Router>
@@ -1365,7 +1361,15 @@ export default function App() {
             currencies={currencies}
           />
         } />
-        <Route path="/admin" element={<AdminPanel token={token} user={user} formatCurrency={formatCurrency} />} />
+        <Route path="/admin" element={
+          user.role === 'admin' ? (
+            <AdminPanel token={token} user={user} formatCurrency={formatCurrency} />
+          ) : (
+            <div className="min-h-screen bg-black flex items-center justify-center text-white font-black text-2xl tracking-tighter">
+              ACCESS_DENIED_403
+            </div>
+          )
+        } />
       </Routes>
     </Router>
   );

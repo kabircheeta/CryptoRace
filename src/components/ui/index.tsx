@@ -18,7 +18,8 @@ export const Button = ({
   variant = 'primary', 
   className = '', 
   disabled = false,
-  loading = false
+  loading = false,
+  type = 'button'
 }: { 
   children: React.ReactNode; 
   onClick?: () => void; 
@@ -26,6 +27,7 @@ export const Button = ({
   className?: string;
   disabled?: boolean;
   loading?: boolean;
+  type?: 'button' | 'submit' | 'reset';
 }) => {
   const variants = {
     primary: "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20",
@@ -37,6 +39,7 @@ export const Button = ({
 
   return (
     <button 
+      type={type}
       onClick={onClick}
       disabled={disabled || loading}
       className={cn(

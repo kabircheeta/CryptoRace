@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Wallet, CheckCircle2, XCircle, Clock, RefreshCw, Eye, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Wallet, CheckCircle2, XCircle, Clock, RefreshCw, Eye, ExternalLink, ShieldCheck, Users, Edit3, Save } from 'lucide-react';
 import { GlassCard, Button, cn } from './ui';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,22 +13,27 @@ interface AdminPanelProps {
 export default function AdminPanel({ token, user, formatCurrency }: AdminPanelProps) {
   const [adminDeposits, setAdminDeposits] = useState<any[]>([]);
   const [adminWithdrawals, setAdminWithdrawals] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'deposits' | 'withdrawals'>('deposits');
+  const [activeTab, setActiveTab] = useState<'deposits' | 'withdrawals' | 'users'>('deposits');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editBalance, setEditBalance] = useState<string>('');
   const navigate = useNavigate();
 
   const fetchAdminData = async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [depRes, withRes] = await Promise.all([
+      const [depRes, withRes, userRes] = await Promise.all([
         fetch('/api/admin/deposits', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/admin/withdrawals', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/admin/withdrawals', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
       if (depRes.ok) setAdminDeposits(await depRes.json());
       if (withRes.ok) setAdminWithdrawals(await withRes.json());
+      if (userRes.ok) setAdminUsers(await userRes.json());
     } catch (e) {
       console.error("Failed to fetch admin data", e);
     } finally {
@@ -43,6 +48,35 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
     }
     fetchAdminData();
   }, [user, token, navigate]);
+
+  const handleUpdateBalance = async (userId: number) => {
+    const balance = parseFloat(editBalance);
+    if (isNaN(balance)) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/balance`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ balance })
+      });
+      
+      if (res.ok) {
+        setEditingUserId(null);
+        fetchAdminData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Update failed");
+      }
+    } catch (e) {
+      alert("Update failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAdminAction = async (id: number, action: 'approve' | 'reject', type: 'deposit' | 'withdrawal') => {
     setLoading(true);
@@ -115,11 +149,8 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
             <div className="text-2xl font-black font-mono">{adminWithdrawals.length}</div>
           </GlassCard>
           <GlassCard className="p-4 border-l-2 border-l-emerald-500">
-            <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-1">System Status</div>
-            <div className="text-sm font-bold text-emerald-400 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              OPERATIONAL
-            </div>
+            <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-1">Total Users</div>
+            <div className="text-2xl font-black font-mono">{adminUsers.length}</div>
           </GlassCard>
           <GlassCard className="p-4 border-l-2 border-l-white/20">
             <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-1">Last Sync</div>
@@ -147,6 +178,15 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
               )}
             >
               Withdrawals
+            </button>
+            <button 
+              onClick={() => setActiveTab('users')}
+              className={cn(
+                "px-6 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-widest",
+                activeTab === 'users' ? "bg-white/10 text-white shadow-lg" : "text-white/40 hover:text-white/60"
+              )}
+            >
+              Users
             </button>
           </div>
           
@@ -254,7 +294,7 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
                 </GlassCard>
               ))
             )
-          ) : (
+          ) : activeTab === 'withdrawals' ? (
             adminWithdrawals.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-32 bg-white/[0.02] rounded-3xl border border-dashed border-white/10">
                 <Clock size={48} className="text-white/10 mb-4" />
@@ -329,6 +369,71 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
                 </GlassCard>
               ))
             )
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {adminUsers.map((u) => (
+                <GlassCard key={u.id} className="p-6 border-white/5 hover:border-white/10 transition-all">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/40">
+                        <Users size={24} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">{u.email}</span>
+                          {u.role === 'admin' && (
+                            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-black uppercase tracking-widest border border-blue-500/20">Admin</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-bold text-white/20 uppercase tracking-widest">User ID: {u.id}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-8">
+                      <div className="text-right">
+                        <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Current Balance</div>
+                        {editingUserId === u.id ? (
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="number" 
+                              value={editBalance}
+                              onChange={(e) => setEditBalance(e.target.value)}
+                              className="w-32 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm font-mono text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                              autoFocus
+                            />
+                            <button 
+                              onClick={() => handleUpdateBalance(u.id)}
+                              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                            >
+                              <Save size={16} />
+                            </button>
+                            <button 
+                              onClick={() => setEditingUserId(null)}
+                              className="p-1.5 rounded-lg bg-white/5 text-white/40 hover:text-white/60 transition-all"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl font-black text-emerald-400 font-mono">{formatCurrency(u.balance)}</span>
+                            <button 
+                              onClick={() => {
+                                setEditingUserId(u.id);
+                                setEditBalance(u.balance.toString());
+                              }}
+                              className="p-1.5 rounded-lg bg-white/5 text-white/20 hover:text-white/60 transition-all"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
           )}
         </div>
       </main>

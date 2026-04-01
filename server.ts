@@ -58,26 +58,30 @@ function getTransporter() {
   return transporterInstance;
 }
 
-// Initialize Database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE,
-    password TEXT,
-    balance REAL DEFAULT 1000.0,
-    is_new_user INTEGER DEFAULT 1,
-    is_verified INTEGER DEFAULT 0,
-    role TEXT DEFAULT 'user'
-  );
-`);
+  // Initialize Database
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE,
+      password TEXT,
+      balance REAL DEFAULT 1000.0,
+      is_new_user INTEGER DEFAULT 1,
+      is_verified INTEGER DEFAULT 0,
+      role TEXT DEFAULT 'user'
+    );
+  `);
 
-// Migration: Add role column if it doesn't exist
-try {
-  db.prepare("SELECT role FROM users LIMIT 1").get();
-} catch (e) {
-  console.log("Migrating database: adding role column to users table");
-  db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
-}
+  // Migration: Add role column if it doesn't exist
+  try {
+    db.prepare("SELECT role FROM users LIMIT 1").get();
+  } catch (e) {
+    console.log("Migrating database: adding role column to users table");
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
+  }
+
+  // Ensure the specific user is an admin
+  const ADMIN_EMAIL = 'kabirsahab96@gmail.com';
+  db.prepare("UPDATE users SET role = 'admin' WHERE email = ?").run(ADMIN_EMAIL);
 
 // Migration: Add utr_number and proof_image to transactions if they don't exist
 try {
@@ -465,13 +469,14 @@ async function startServer() {
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
     email = email.trim().toLowerCase();
+    const role = email === 'kabirsahab96@gmail.com' ? 'admin' : 'user';
 
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
-      const info = db.prepare('INSERT INTO users (email, password, is_verified) VALUES (?, ?, 1)').run(email, hashedPassword);
+      const info = db.prepare('INSERT INTO users (email, password, is_verified, role) VALUES (?, ?, 1, ?)').run(email, hashedPassword, role);
       
       const token = jwt.sign({ id: info.lastInsertRowid, email }, JWT_SECRET);
-      res.json({ token, user: { id: info.lastInsertRowid, email, balance: 1000 } });
+      res.json({ token, user: { id: info.lastInsertRowid, email, balance: 1000, role } });
     } catch (e) {
       res.status(400).json({ error: 'Email already exists or signup failed' });
     }
@@ -602,6 +607,25 @@ async function startServer() {
       res.json({ message: 'Withdrawal rejected and refunded' });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/admin/users', authenticateToken, isAdmin, (req, res) => {
+    const users = db.prepare('SELECT id, email, balance, role, is_verified FROM users ORDER BY balance DESC').all();
+    res.json(users);
+  });
+
+  app.post('/api/admin/users/:id/balance', authenticateToken, isAdmin, (req, res) => {
+    const { id } = req.params;
+    const { balance } = req.body;
+    
+    if (typeof balance !== 'number') return res.status(400).json({ error: 'Invalid balance' });
+
+    try {
+      db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(balance, id);
+      res.json({ message: 'User balance updated successfully' });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to update balance' });
     }
   });
 
