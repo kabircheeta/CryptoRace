@@ -28,7 +28,16 @@ export default function Login({ onLogin }: LoginProps) {
         body: JSON.stringify({ email, password }),
       });
       
-      const data = await res.json();
+      let data;
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error('Server returned non-JSON response:', text);
+        setError(`Server error (${res.status}). Please try again later.`);
+        return;
+      }
       
       if (res.ok) {
         localStorage.setItem('token', data.token);
@@ -36,8 +45,9 @@ export default function Login({ onLogin }: LoginProps) {
       } else {
         setError(data.error || 'Authentication failed');
       }
-    } catch (err) {
-      setError('An error occurred. Please try again.');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
