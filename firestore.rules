@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string (required, email format)
+    //   - balance: number (required, >= 0)
+    //   - is_new_user: bool (optional)
+    //   - is_verified: bool (optional)
+    //   - role: string (required, 'user' or 'admin')
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: users/{userId}/bets
+    // Document ID: {betId}
+    // Fields:
+    //   - userId: string (required)
+    //   - asset: string (required, 'BTC' or 'ETH')
+    //   - amount: number (required, > 0)
+    //   - outcome: string (required, 'WIN' or 'LOSS')
+    //   - profit: number (required)
+    //   - timestamp: timestamp (required)
+    //
+    // Collection: users/{userId}/transactions
+    // Document ID: {transactionId}
+    // Fields:
+    //   - userId: string (required)
+    //   - type: string (required, 'DEPOSIT' or 'WITHDRAWAL')
+    //   - amount: number (required)
+    //   - status: string (required)
+    //   - utr_number: string (optional)
+    //   - proof_image: string (optional)
+    //   - timestamp: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "kabirsahab96@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.email is string && isValidEmail(data.email) &&
+             data.balance is number && data.balance >= 0 &&
+             data.role in ['user', 'admin'] &&
+             data.email.size() < 255;
+    }
+
+    function isValidBet(data) {
+      return data.userId is string &&
+             data.asset in ['BTC', 'ETH'] &&
+             data.amount is number && data.amount > 0 &&
+             data.outcome in ['WIN', 'LOSS'] &&
+             data.profit is number &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string &&
+             data.type in ['DEPOSIT', 'WITHDRAWAL'] &&
+             data.amount is number &&
+             data.status in ['PENDING', 'PENDING_PROOF', 'PROCESSING', 'COMPLETED', 'REJECTED'] &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Only allow user to create their own profile as 'user' role
+      // Admin can create any profile
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == 'user') || isAdmin());
+      
+      // Only allow user to update their own profile but NOT their role or balance
+      // Admin can update anything
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    ((isOwner(userId) && 
+                      request.resource.data.role == resource.data.role && 
+                      request.resource.data.balance == resource.data.balance) || isAdmin());
+      
+      match /bets/{betId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidBet(request.resource.data);
+        allow update, delete: if isAdmin();
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidTransaction(request.resource.data);
+        allow update: if (isOwner(userId) && isValidTransaction(request.resource.data) && request.resource.data.status == resource.data.status) || isAdmin();
+        allow delete: if isAdmin();
+      }
+
+      match /linked_accounts/{accountId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /global_history/{betId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidBet(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /otps/{otpId} {
+      allow read, write: if isAdmin(); // OTPs should be handled server-side or via Firebase Auth
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

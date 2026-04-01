@@ -38,9 +38,11 @@ import { GlassCard, Button, Skeleton, cn } from './components/ui';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 
+import { auth, db, doc, onSnapshot, onAuthStateChanged, FirebaseUser } from './firebase';
+
 // --- Types ---
 interface UserData {
-  id: number;
+  id: string;
   email: string;
   balance: number;
   role: 'user' | 'admin';
@@ -1261,6 +1263,7 @@ export default function App() {
   const [currency, setCurrency] = useState('USD');
   const [currencySymbol, setCurrencySymbol] = useState('$');
   const [appConfig, setAppConfig] = useState<{ stripeConfigured: boolean; gmailConfigured: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const currencies = [
     { code: 'USD', symbol: '$', name: 'US Dollar' },
@@ -1275,24 +1278,46 @@ export default function App() {
     { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
   ];
 
-  const fetchUser = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/user/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const idToken = await firebaseUser.getIdToken();
+        setToken(idToken);
+        localStorage.setItem('token', idToken);
+        
+        // Listen to user document in Firestore
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const unsubUser = onSnapshot(userRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUser({ ...docSnap.data() as any, id: firebaseUser.uid });
+          }
+          setLoading(false);
+        });
+        return () => unsubUser();
       } else {
-        localStorage.removeItem('token');
+        setUser(null);
         setToken(null);
+        localStorage.removeItem('token');
+        setLoading(false);
       }
-    } catch (e) {
-      localStorage.removeItem('token');
-      setToken(null);
-    }
-  };
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const configRes = await fetch('/api/config');
+        if (configRes.ok) {
+          setAppConfig(await configRes.json());
+        }
+      } catch (e) {
+        console.error("Failed to fetch config", e);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     const fetchExchangeRates = async () => {
@@ -1311,32 +1336,22 @@ export default function App() {
     fetchExchangeRates();
   }, [currency]);
 
-  useEffect(() => {
-    const initAuth = async () => {
-      // Fetch config
-      try {
-        const configRes = await fetch('/api/config');
-        if (configRes.ok) {
-          setAppConfig(await configRes.json());
-        }
-      } catch (e) {
-        console.error("Failed to fetch config", e);
-      }
-
-      if (!token) {
-        // No token, just stop loading
-        return;
-      } else {
-        fetchUser();
-      }
-    };
-    initAuth();
-  }, [token]);
-
   const formatCurrency = (amount: number) => {
     const converted = amount * exchangeRate;
     return `${currencySymbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+
+  const fetchUser = async () => {
+    // User data is handled by onSnapshot in useEffect
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!token || !user) {
     return <Login onLogin={(t, u) => { setToken(t); setUser(u); }} />;

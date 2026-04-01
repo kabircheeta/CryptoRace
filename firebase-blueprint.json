@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and balance information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "balance": { "type": "number", "description": "User's current balance" },
+        "is_new_user": { "type": "boolean", "description": "Whether the user is new (for first loss refund)" },
+        "is_verified": { "type": "boolean", "description": "Whether the user's email is verified" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "balance", "role"]
+    },
+    "Bet": {
+      "title": "Bet",
+      "description": "A bet placed by a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "asset": { "type": "string", "enum": ["BTC", "ETH"] },
+        "amount": { "type": "number" },
+        "outcome": { "type": "string", "enum": ["WIN", "LOSS"] },
+        "profit": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "asset", "amount", "outcome", "profit", "timestamp"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A deposit or withdrawal transaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["DEPOSIT", "WITHDRAWAL"] },
+        "amount": { "type": "number" },
+        "method": { "type": "string" },
+        "details": { "type": "string", "description": "JSON string for extra info" },
+        "status": { "type": "string", "enum": ["PENDING", "PENDING_PROOF", "PROCESSING", "COMPLETED", "REJECTED"] },
+        "utr_number": { "type": "string" },
+        "proof_image": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "amount", "status", "timestamp"]
+    },
+    "LinkedAccount": {
+      "title": "LinkedAccount",
+      "description": "A linked bank or payment account",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["bank", "paypal", "card"] },
+        "account_name": { "type": "string" },
+        "account_number": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "account_name", "account_number", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile documents"
+    },
+    "/users/{userId}/bets/{betId}": {
+      "schema": { "$ref": "#/entities/Bet" },
+      "description": "User's betting history"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "User's transaction history"
+    },
+    "/users/{userId}/linked_accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/LinkedAccount" },
+      "description": "User's linked payment accounts"
+    },
+    "/global_history/{betId}": {
+      "schema": { "$ref": "#/entities/Bet" },
+      "description": "Global betting history for leaderboard and live activity"
+    }
+  }
+}

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Lock, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck, Zap, Chrome } from 'lucide-react';
 import { GlassCard, Button } from './ui';
+import { auth, googleProvider, signInWithPopup, db, doc, getDoc, setDoc } from '../firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
 interface LoginProps {
   onLogin: (token: string, user: any) => void;
@@ -14,40 +16,67 @@ export default function Login({ onLogin }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const handleFirebaseLogin = async (user: any) => {
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    let userData;
+
+    if (!userDoc.exists()) {
+      // Initialize new user in Firestore
+      userData = {
+        email: user.email,
+        balance: 1000,
+        role: user.email === 'kabirsahab96@gmail.com' ? 'admin' : 'user',
+        is_new_user: true,
+        is_verified: user.emailVerified,
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'users', user.uid), userData);
+    } else {
+      userData = userDoc.data();
+    }
+
+    const token = await user.getIdToken();
+    onLogin(token, { ...userData, id: user.uid });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-    
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      let data;
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
+      let userCredential;
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       } else {
-        const text = await res.text();
-        console.error('Server returned non-JSON response:', text);
-        setError(`Server error (${res.status}). Please try again later.`);
-        return;
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
       }
-      
-      if (res.ok) {
-        localStorage.setItem('token', data.token);
-        onLogin(data.token, data.user);
-      } else {
-        setError(data.error || 'Authentication failed');
-      }
+      await handleFirebaseLogin(userCredential.user);
     } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.message || 'An error occurred. Please try again.');
+      console.error('Firebase Auth error:', err);
+      let message = 'An error occurred. Please try again.';
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        message = 'Invalid email or password.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        message = 'Email already in use.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'Password should be at least 6 characters.';
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      await handleFirebaseLogin(result.user);
+    } catch (err: any) {
+      console.error('Google Login error:', err);
+      setError('Google login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,19 +164,31 @@ export default function Login({ onLogin }: LoginProps) {
               </motion.div>
             )}
 
-            <Button 
-              type="submit" 
-              loading={loading}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20 text-xs font-black tracking-widest"
-            >
-              {isLogin ? 'ACCESS SYSTEM' : 'CREATE ACCOUNT'}
-              <ArrowRight size={16} className="ml-2" />
-            </Button>
+            <div className="space-y-3">
+              <Button 
+                type="submit" 
+                loading={loading}
+                className="w-full h-12 bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20 text-xs font-black tracking-widest"
+              >
+                {isLogin ? 'ACCESS SYSTEM' : 'CREATE ACCOUNT'}
+                <ArrowRight size={16} className="ml-2" />
+              </Button>
+
+              <Button 
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="w-full h-12 bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-black tracking-widest"
+              >
+                <Chrome size={16} className="mr-2" />
+                CONTINUE WITH GOOGLE
+              </Button>
+            </div>
           </form>
 
           <div className="mt-8 pt-8 border-t border-white/5 text-center">
             <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
-              Secured by End-to-End Encryption
+              Secured by Firebase Authentication
             </p>
           </div>
         </GlassCard>
