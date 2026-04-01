@@ -21,15 +21,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
 // Stripe Helper
 let stripeInstance: Stripe | null = null;
+let isStripeMocked = false;
+
 function getStripe() {
-  if (!stripeInstance) {
+  if (!stripeInstance && !isStripeMocked) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) {
-      console.error('STRIPE_SECRET_KEY is missing');
-      throw new Error('STRIPE_SECRET_KEY environment variable is missing. Please set it in the Settings menu.');
+      console.warn('STRIPE_SECRET_KEY is missing. Switching to MOCK MODE.');
+      isStripeMocked = true;
+      return null;
     }
     stripeInstance = new Stripe(key, {
-      apiVersion: '2025-02-24.acacia' as any, // Use a recent stable version
+      apiVersion: '2025-02-24.acacia' as any,
     });
   }
   return stripeInstance;
@@ -63,9 +66,29 @@ db.exec(`
     password TEXT,
     balance REAL DEFAULT 1000.0,
     is_new_user INTEGER DEFAULT 1,
-    is_verified INTEGER DEFAULT 0
+    is_verified INTEGER DEFAULT 0,
+    role TEXT DEFAULT 'user'
   );
+`);
 
+// Migration: Add role column if it doesn't exist
+try {
+  db.prepare("SELECT role FROM users LIMIT 1").get();
+} catch (e) {
+  console.log("Migrating database: adding role column to users table");
+  db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
+}
+
+// Migration: Add utr_number and proof_image to transactions if they don't exist
+try {
+  db.prepare("SELECT utr_number FROM transactions LIMIT 1").get();
+} catch (e) {
+  console.log("Migrating database: adding utr_number and proof_image to transactions table");
+  try { db.exec("ALTER TABLE transactions ADD COLUMN utr_number TEXT"); } catch(e) {}
+  try { db.exec("ALTER TABLE transactions ADD COLUMN proof_image TEXT"); } catch(e) {}
+}
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS otps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT,
@@ -92,6 +115,8 @@ db.exec(`
     method TEXT,
     details TEXT,
     status TEXT DEFAULT 'COMPLETED',
+    utr_number TEXT,
+    proof_image TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
@@ -137,11 +162,15 @@ async function startServer() {
     const email = `${name}@bot.com`;
     const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (!existing) {
-      db.prepare('INSERT INTO users (email, password, balance, is_verified) VALUES (?, ?, ?, ?)').run(
-        email, 'bot-password', 10000, 1
+      db.prepare('INSERT INTO users (email, password, balance, is_verified, role) VALUES (?, ?, ?, ?, ?)').run(
+        email, 'bot-password', 10000, 1, 'user'
       );
     }
   });
+
+  // Ensure the primary user is an admin
+  const adminEmail = 'kabirsahab96@gmail.com';
+  db.prepare("UPDATE users SET role = 'admin' WHERE email = ?").run(adminEmail);
 
   // Simulate bot activity every 15-30 seconds
   setInterval(() => {
@@ -222,7 +251,8 @@ async function startServer() {
     res.json({ received: true });
   });
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Stripe Callback Page
   app.get('/api/stripe/callback', (req, res) => {
@@ -247,6 +277,81 @@ async function startServer() {
     `);
   });
 
+  // Mock Stripe Checkout Page
+  app.get('/api/stripe/mock-checkout', (req, res) => {
+    const { amount, email, userId } = req.query;
+    res.send(`
+      <html>
+        <head>
+          <title>Mock Stripe Checkout</title>
+          <style>
+            body { background: #0f172a; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #1e293b; padding: 40px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); max-width: 400px; width: 100%; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+            .btn { display: block; width: 100%; padding: 15px; margin-top: 20px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+            .btn-primary { background: #3b82f6; color: white; }
+            .btn-primary:hover { background: #2563eb; }
+            .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid #334155; margin-top: 10px; }
+            .btn-ghost:hover { background: rgba(255,255,255,0.05); }
+            .badge { background: #f59e0b; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 20px; display: inline-block; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="badge">Mock Mode</div>
+            <h1 style="margin: 0 0 10px 0;">Checkout</h1>
+            <p style="color: #94a3b8; margin-bottom: 30px;">Deposit for ${email}</p>
+            <div style="font-size: 48px; font-weight: 900; margin-bottom: 30px;">$${amount}</div>
+            
+            <button class="btn btn-primary" onclick="handleSuccess()">Pay Now (Simulated)</button>
+            <button class="btn btn-ghost" onclick="handleCancel()">Cancel</button>
+          </div>
+
+          <script>
+            async function handleSuccess() {
+              // Simulate webhook call
+              try {
+                await fetch('/api/webhook/mock-stripe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: '${userId}', amount: ${amount} })
+                });
+                window.location.href = '/api/stripe/callback?status=success';
+              } catch (e) {
+                alert('Mock payment failed');
+              }
+            }
+            function handleCancel() {
+              window.location.href = '/api/stripe/callback?status=cancel';
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  });
+
+  // Mock Webhook (only for mock mode)
+  app.post('/api/webhook/mock-stripe', (req, res) => {
+    const { userId, amount } = req.body;
+    if (userId && amount > 0) {
+      try {
+        db.transaction(() => {
+          const user: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(userId);
+          if (user) {
+            const newBalance = user.balance + Number(amount);
+            db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(newBalance, userId);
+            db.prepare('INSERT INTO transactions (user_id, type, amount, method, details, status) VALUES (?, ?, ?, ?, ?, ?)')
+              .run(userId, 'DEPOSIT', Number(amount), 'STRIPE (MOCK)', JSON.stringify({ mock: true }), 'COMPLETED');
+          }
+        })();
+        res.json({ success: true });
+      } catch (e) {
+        res.status(500).json({ error: 'Database error' });
+      }
+    } else {
+      res.status(400).json({ error: 'Invalid data' });
+    }
+  });
+
   // Auth Middleware
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -255,12 +360,31 @@ async function startServer() {
 
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
       if (err) return res.sendStatus(403);
-      req.user = user;
+      
+      // Fetch full user to get role
+      const fullUser: any = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+      if (!fullUser) return res.sendStatus(403);
+      
+      req.user = fullUser;
       next();
     });
   };
 
+  const isAdmin = (req: any, res: any, next: any) => {
+    if (req.user && req.user.role === 'admin') {
+      next();
+    } else {
+      res.status(403).json({ error: 'Admin access required' });
+    }
+  };
+
   // --- API Routes ---
+  app.get('/api/config', (req, res) => {
+    res.json({
+      stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+      gmailConfigured: !!process.env.GMAIL_USER && !!process.env.GMAIL_PASS && process.env.GMAIL_USER !== 'your-email@gmail.com'
+    });
+  });
 
   app.post('/api/auth/guest', async (req, res) => {
     const guestId = Math.floor(Math.random() * 1000000);
@@ -368,25 +492,117 @@ async function startServer() {
 
   // User Data
   app.get('/api/user/me', authenticateToken, (req: any, res) => {
-    const user: any = db.prepare('SELECT id, email, balance FROM users WHERE id = ?').get(req.user.id);
+    const user: any = db.prepare('SELECT id, email, balance, role FROM users WHERE id = ?').get(req.user.id);
     res.json(user);
   });
 
-  app.post('/api/user/deposit', authenticateToken, (req: any, res) => {
-    const { amount, method, details } = req.body;
+  app.post('/api/user/deposit/initiate', authenticateToken, (req: any, res) => {
+    const { amount } = req.body;
     const userId = req.user.id;
     if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
-    if (!method || !details) return res.status(400).json({ error: 'Payment method and details are required' });
 
-    // In a real app, this would initiate a payment gateway session.
-    // Here we simulate a "PENDING" state that needs "SUCCESS" confirmation.
-    const info = db.prepare('INSERT INTO transactions (user_id, type, amount, method, details, status) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(userId, 'DEPOSIT', amount, method, JSON.stringify(details), 'PENDING');
+    const info = db.prepare('INSERT INTO transactions (user_id, type, amount, method, status) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, 'DEPOSIT', amount, 'BANK_TRANSFER', 'PENDING_PROOF');
 
     res.json({ 
-      message: 'Deposit initiated. Please complete the payment.',
+      message: 'Deposit initiated. Please submit proof of payment.',
       transactionId: info.lastInsertRowid 
     });
+  });
+
+  app.post('/api/user/deposit/submit-proof', authenticateToken, (req: any, res) => {
+    const { transactionId, utrNumber, proofImage } = req.body;
+    const userId = req.user.id;
+
+    if (!utrNumber || !proofImage) {
+      return res.status(400).json({ error: 'UTR number and proof image are required' });
+    }
+
+    const tx: any = db.prepare("SELECT * FROM transactions WHERE id = ? AND user_id = ? AND status = 'PENDING_PROOF'").get(transactionId, userId);
+    if (!tx) return res.status(404).json({ error: 'Pending transaction not found' });
+
+    db.prepare("UPDATE transactions SET status = 'PROCESSING', utr_number = ?, proof_image = ? WHERE id = ?")
+      .run(utrNumber, proofImage, transactionId);
+
+    res.json({ message: 'Proof submitted. Your deposit is being processed.' });
+  });
+
+  // Admin Routes
+  app.get('/api/admin/deposits', authenticateToken, isAdmin, (req, res) => {
+    const deposits = db.prepare(`
+      SELECT t.*, u.email 
+      FROM transactions t 
+      JOIN users u ON t.user_id = u.id 
+      WHERE t.type = 'DEPOSIT' AND t.status = 'PROCESSING'
+      ORDER BY t.timestamp DESC
+    `).all();
+    res.json(deposits);
+  });
+
+  app.post('/api/admin/deposits/:id/approve', authenticateToken, isAdmin, (req, res) => {
+    const { id } = req.params;
+    
+    try {
+      db.transaction(() => {
+        const tx: any = db.prepare("SELECT * FROM transactions WHERE id = ? AND status = 'PROCESSING'").get(id);
+        if (!tx) throw new Error('Transaction not found or already processed');
+
+        const user: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(tx.user_id);
+        const newBalance = user.balance + tx.amount;
+
+        db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(newBalance, tx.user_id);
+        db.prepare("UPDATE transactions SET status = 'COMPLETED' WHERE id = ?").run(id);
+      })();
+      res.json({ message: 'Deposit approved successfully' });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/admin/deposits/:id/reject', authenticateToken, isAdmin, (req, res) => {
+    const { id } = req.params;
+    const info = db.prepare("UPDATE transactions SET status = 'REJECTED' WHERE id = ? AND status = 'PROCESSING'").run(id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Transaction not found or already processed' });
+    res.json({ message: 'Deposit rejected' });
+  });
+
+  app.get('/api/admin/withdrawals', authenticateToken, isAdmin, (req, res) => {
+    const withdrawals = db.prepare(`
+      SELECT t.*, u.email 
+      FROM transactions t 
+      JOIN users u ON t.user_id = u.id 
+      WHERE t.type = 'WITHDRAWAL' AND t.status = 'PROCESSING'
+      ORDER BY t.timestamp DESC
+    `).all();
+    res.json(withdrawals);
+  });
+
+  app.post('/api/admin/withdrawals/:id/approve', authenticateToken, isAdmin, (req, res) => {
+    const { id } = req.params;
+    const info = db.prepare("UPDATE transactions SET status = 'COMPLETED' WHERE id = ? AND status = 'PROCESSING'").run(id);
+    if (info.changes === 0) return res.status(404).json({ error: 'Withdrawal not found or already processed' });
+    res.json({ message: 'Withdrawal marked as completed' });
+  });
+
+  app.post('/api/admin/withdrawals/:id/reject', authenticateToken, isAdmin, (req, res) => {
+    const { id } = req.params;
+    
+    try {
+      db.transaction(() => {
+        const tx: any = db.prepare("SELECT * FROM transactions WHERE id = ? AND status = 'PROCESSING'").get(id);
+        if (!tx) throw new Error('Withdrawal not found or already processed');
+
+        // Refund the amount to user balance
+        const user: any = db.prepare('SELECT balance FROM users WHERE id = ?').get(tx.user_id);
+        const newBalance = user.balance + Math.abs(tx.amount);
+
+        db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(newBalance, tx.user_id);
+        db.prepare("UPDATE transactions SET status = 'REJECTED' WHERE id = ?").run(id);
+      })();
+      res.json({ message: 'Withdrawal rejected and refunded' });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
   });
 
   app.post('/api/user/deposit/stripe-session', authenticateToken, async (req: any, res) => {
@@ -401,8 +617,15 @@ async function startServer() {
     try {
       const stripe = getStripe();
       const appUrl = process.env.APP_URL || 'http://localhost:3000';
-      console.log(`Creating Stripe session for user ${userEmail} with amount ${amount} and appUrl ${appUrl}`);
 
+      if (!stripe) {
+        // Mock Flow
+        console.log(`Using Mock Stripe flow for user ${userEmail}`);
+        const mockUrl = `${appUrl}/api/stripe/mock-checkout?amount=${amount}&email=${userEmail}&userId=${userId}`;
+        return res.json({ url: mockUrl, isMock: true });
+      }
+
+      console.log(`Creating Stripe session for user ${userEmail} with amount ${amount} and appUrl ${appUrl}`);
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -469,7 +692,7 @@ async function startServer() {
     const newBalance = user.balance - amount;
     db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(newBalance, userId);
     db.prepare('INSERT INTO transactions (user_id, type, amount, method, details, status) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(userId, 'WITHDRAWAL', -amount, method, JSON.stringify(details), 'COMPLETED');
+      .run(userId, 'WITHDRAWAL', -amount, method, JSON.stringify(details), 'PROCESSING');
 
     res.json({ balance: newBalance });
   });

@@ -6,6 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation
+} from 'react-router-dom';
+import { 
   TrendingUp, 
   Zap, 
   Wallet, 
@@ -26,19 +33,16 @@ import {
   Banknote
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import CanvasRace from './components/CanvasRace';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { GlassCard, Button, Skeleton, cn } from './components/ui';
+import AdminPanel from './components/AdminPanel';
 
 // --- Types ---
 interface UserData {
   id: number;
   email: string;
   balance: number;
+  role: 'user' | 'admin';
 }
 
 interface BetHistory {
@@ -65,65 +69,45 @@ interface LiveActivity {
   timestamp: string;
 }
 
-// --- Components ---
+// --- Main Dashboard ---
 
-const GlassCard = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn("bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl", className)}>
-    {children}
-  </div>
-);
+interface DashboardProps {
+  user: UserData | null;
+  token: string | null;
+  formatCurrency: (amount: number) => string;
+  fetchUser: () => void;
+  setUser: React.Dispatch<React.SetStateAction<UserData | null>>;
+  appConfig: { stripeConfigured: boolean; gmailConfigured: boolean } | null;
+  currency: string;
+  setCurrency: (c: string) => void;
+  setCurrencySymbol: (s: string) => void;
+  currencySymbol: string;
+  exchangeRate: number;
+  currencies: { code: string; symbol: string; name: string }[];
+}
 
-const Skeleton = ({ className }: { className?: string }) => (
-  <div className={cn("animate-pulse bg-white/10 rounded-lg", className)} />
-);
-
-const Button = ({ 
-  children, 
-  onClick, 
-  variant = 'primary', 
-  className,
-  disabled,
-  loading
-}: { 
-  children: React.ReactNode; 
-  onClick?: () => void; 
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
-  className?: string;
-  disabled?: boolean;
-  loading?: boolean;
-}) => {
-  const variants = {
-    primary: "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20",
-    secondary: "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20",
-    outline: "border border-white/20 hover:bg-white/5 text-white",
-    ghost: "hover:bg-white/5 text-white/70 hover:text-white",
-    danger: "bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30"
-  };
-
-  return (
-    <button 
-      onClick={onClick}
-      disabled={disabled || loading}
-      className={cn(
-        "px-6 py-3 rounded-xl font-semibold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2",
-        variants[variant],
-        className
-      )}
-    >
-      {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : children}
-    </button>
-  );
-};
-
-// --- Main App ---
-
-export default function App() {
+function Dashboard({ 
+  user, 
+  token, 
+  formatCurrency, 
+  fetchUser, 
+  setUser,
+  appConfig,
+  currency,
+  setCurrency,
+  setCurrencySymbol,
+  currencySymbol,
+  exchangeRate,
+  currencies
+}: DashboardProps) {
   const [view, setView] = useState<'dashboard' | 'deposit' | 'withdraw'>('dashboard');
-  const [user, setUser] = useState<UserData | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingTransaction, setPendingTransaction] = useState<number | null>(null);
+  const [depositStep, setDepositStep] = useState<'amount' | 'proof'>('amount');
+  const [utrNumber, setUtrNumber] = useState('');
+  const [proofImage, setProofImage] = useState<string | null>(null);
   const [paymentDetails, setPaymentDetails] = useState<any>({});
   const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
 
@@ -142,48 +126,11 @@ export default function App() {
   const [tempResult, setTempResult] = useState<any>(null);
   const [showResultModal, setShowResultModal] = useState(false);
   const [animationFinished, setAnimationFinished] = useState(false);
-
   const [racePaths, setRacePaths] = useState<{ BTC: number[]; ETH: number[] } | null>(null);
   const [liveActivity, setLiveActivity] = useState<LiveActivity[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [prices, setPrices] = useState<{ BTC: number; ETH: number }>({ BTC: 0, ETH: 0 });
-  const [currency, setCurrency] = useState('USD');
-  const [exchangeRate, setExchangeRate] = useState(1);
-  const [currencySymbol, setCurrencySymbol] = useState('$');
-
-  const currencies = [
-    { code: 'USD', symbol: '$', name: 'US Dollar' },
-    { code: 'EUR', symbol: '€', name: 'Euro' },
-    { code: 'GBP', symbol: '£', name: 'British Pound' },
-    { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-    { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-    { code: 'BRL', symbol: 'R$', name: 'Brazilian Real' },
-    { code: 'NGN', symbol: '₦', name: 'Nigerian Naira' },
-    { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
-    { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
-    { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
-  ];
-
-  useEffect(() => {
-    const fetchExchangeRates = async () => {
-      try {
-        const res = await fetch('https://open.er-api.com/v6/latest/USD');
-        const data = await res.json();
-        if (data.rates && data.rates[currency]) {
-          setExchangeRate(data.rates[currency]);
-        }
-      } catch (e) {
-        console.error("Failed to fetch exchange rates", e);
-      }
-    };
-    fetchExchangeRates();
-  }, [currency]);
-
-  const formatCurrency = (amount: number) => {
-    const converted = amount * exchangeRate;
-    return `${currencySymbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -246,28 +193,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
-      if (!token) {
-        setLoading(true);
-        try {
-          const res = await fetch('/api/auth/guest', { method: 'POST' });
-          const data = await res.json();
-          if (res.ok) {
-            localStorage.setItem('token', data.token);
-            setToken(data.token);
-            setUser(data.user);
-          }
-        } catch (e) {
-          console.error("Guest login failed", e);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        fetchUser();
-        fetchLinkedAccounts();
-      }
-    };
-    initAuth();
+    if (token) {
+      fetchLinkedAccounts();
+    }
   }, [token]);
 
   useEffect(() => {
@@ -347,26 +275,6 @@ export default function App() {
     }
   };
 
-  const fetchUser = async () => {
-    try {
-      const res = await fetch('/api/user/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data);
-        fetchHistory();
-        fetchLeaderboard();
-      } else {
-        localStorage.removeItem('token');
-        setToken(null);
-      }
-    } catch (e) {
-      localStorage.removeItem('token');
-      setToken(null);
-    }
-  };
-
   const fetchHistory = async () => {
     setHistoryLoading(true);
     try {
@@ -388,27 +296,20 @@ export default function App() {
   };
 
   const handleDeposit = async () => {
-    if (!paymentDetails.accountName || !paymentDetails.accountNumber) {
-      setError("Please fill in all payment details first.");
-      return;
-    }
     setLoading(true);
     try {
-      const res = await fetch('/api/user/deposit', {
+      const res = await fetch('/api/user/deposit/initiate', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          amount: depositAmount, 
-          method: paymentMethod,
-          details: paymentDetails
-        })
+        body: JSON.stringify({ amount: depositAmount })
       });
       const data = await res.json();
       if (res.ok) {
         setPendingTransaction(data.transactionId);
+        setDepositStep('proof');
         setError(null);
       } else {
         setError(data.error);
@@ -417,6 +318,55 @@ export default function App() {
       setError("Deposit failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitProof = async () => {
+    if (!utrNumber || !proofImage) {
+      setError("Please provide UTR number and proof image");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/user/deposit/submit-proof', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          transactionId: pendingTransaction,
+          utrNumber,
+          proofImage
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPendingTransaction(null);
+        setDepositStep('amount');
+        setUtrNumber('');
+        setProofImage(null);
+        setView('dashboard');
+        setError(null);
+        alert("Deposit submitted for processing!");
+      } else {
+        setError(data.error);
+      }
+    } catch (e) {
+      setError("Proof submission failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProofImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -773,6 +723,7 @@ export default function App() {
       </div>
     );
   }
+
   if (view === 'deposit') {
     return (
       <div className="min-h-screen bg-[#050505] text-white flex flex-col">
@@ -789,247 +740,122 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 max-w-3xl mx-auto w-full p-4 md:p-6 py-8 md:py-12">
+        <main className="flex-1 max-w-2xl mx-auto w-full p-4 md:p-6 py-8 md:py-12">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h2 className="text-4xl font-black mb-2">DEPOSIT FUNDS</h2>
-            <p className="text-white/50 mb-12">Choose your preferred payment method and amount to top up your account.</p>
+            <p className="text-white/50 mb-12">Follow the steps below to top up your account via Bank Transfer.</p>
 
             <div className="space-y-8">
-              {/* Payment Methods */}
-              <section>
-                <label className="block text-sm font-medium text-white/50 mb-4 uppercase tracking-wider">1. Select Payment Method</label>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {[
-                    { id: 'card', name: 'Credit/Debit', icon: <CreditCard size={24} />, color: 'text-blue-400' },
-                    { id: 'paypal', name: 'PayPal', icon: <CircleDollarSign size={24} />, color: 'text-indigo-400' },
-                    { id: 'bank', name: 'Bank', icon: <Banknote size={24} />, color: 'text-emerald-400' },
-                    { id: 'crypto', name: 'Crypto', icon: <Bitcoin size={24} />, color: 'text-orange-500' },
-                  ].map((method) => (
-                    <button
-                      key={method.id}
-                      onClick={() => {
-                        setPaymentMethod(method.id as any);
-                        setPaymentDetails({});
-                        setPendingTransaction(null);
-                      }}
-                      className={cn(
-                        "p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-3",
-                        paymentMethod === method.id ? "border-blue-500 bg-blue-500/10" : "border-white/5 bg-white/5 hover:border-white/10"
-                      )}
-                    >
-                      <div className={cn(paymentMethod === method.id ? method.color : "text-white/40")}>
-                        {method.icon}
-                      </div>
-                      <span className="font-bold text-xs">{method.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              {/* Amount Selection */}
-              <section>
-                <label className="block text-sm font-medium text-white/50 mb-4 uppercase tracking-wider">2. Select Amount</label>
-                <div className="grid grid-cols-4 gap-4 mb-6">
-                  {[50, 100, 500, 1000].map(amt => (
-                    <button
-                      key={amt}
-                      onClick={() => setDepositAmount(amt)}
-                      className={cn(
-                        "py-3 rounded-xl border transition-all font-bold",
-                        depositAmount === amt ? "bg-blue-600 border-blue-500" : "bg-white/5 border-white/10 hover:bg-white/10"
-                      )}
-                    >
-                      ${amt}
-                    </button>
-                  ))}
-                </div>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-bold">$</span>
-                  <input
-                    type="number"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(Math.max(1, Number(e.target.value)))}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  />
-                </div>
-              </section>
-
-              {/* Linked Accounts */}
-              {linkedAccounts.filter(a => a.type === paymentMethod).length > 0 && (
-                <section>
-                  <label className="block text-sm font-medium text-white/50 mb-4 uppercase tracking-wider">Linked {paymentMethod.toUpperCase()} Accounts</label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {linkedAccounts.filter(a => a.type === paymentMethod).map(account => (
-                      <div 
-                        key={account.id}
-                        onClick={() => setPaymentDetails(account.details)}
+              {depositStep === 'amount' ? (
+                <section className="space-y-6">
+                  <label className="block text-sm font-medium text-white/50 uppercase tracking-wider">1. Enter Deposit Amount</label>
+                  <div className="grid grid-cols-4 gap-4">
+                    {[100, 500, 1000, 5000].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setDepositAmount(amt)}
                         className={cn(
-                          "p-4 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
-                          paymentDetails.accountNumber === account.account_number ? "border-blue-500 bg-blue-500/10" : "border-white/5 bg-white/5 hover:border-white/10"
+                          "py-3 rounded-xl border transition-all font-bold",
+                          depositAmount === amt ? "bg-blue-600 border-blue-500" : "bg-white/5 border-white/10 hover:bg-white/10"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
-                            {paymentMethod === 'card' && <CreditCard size={18} className="text-blue-400" />}
-                            {paymentMethod === 'paypal' && <CircleDollarSign size={18} className="text-indigo-400" />}
-                            {paymentMethod === 'bank' && <Banknote size={18} className="text-emerald-400" />}
-                          </div>
-                          <div>
-                            <p className="font-bold text-sm">{account.account_name}</p>
-                            <p className="text-xs text-white/40 font-mono">{account.account_number}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnlinkAccount(account.id);
-                          }}
-                          className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors"
-                        >
-                          <History size={14} />
-                        </button>
-                      </div>
+                        ${amt}
+                      </button>
                     ))}
                   </div>
-                </section>
-              )}
-
-              {/* Payment Details Simulation */}
-              <GlassCard className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-white/50">
-                    {linkedAccounts.filter(a => a.type === paymentMethod).length > 0 ? 'Or Use New Details' : 'Payment Details'}
-                  </h4>
-                  {!pendingTransaction && (
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => {
-                          if (paymentMethod === 'card') {
-                            setPaymentDetails({ accountName: 'JOHN DOE', accountNumber: '4242 4242 4242 4242', expiry: '12/28', cvc: '123' });
-                          } else if (paymentMethod === 'paypal') {
-                            setPaymentDetails({ accountName: user?.email, accountNumber: user?.email });
-                          } else if (paymentMethod === 'bank') {
-                            setPaymentDetails({ accountName: 'JOHN DOE', accountNumber: 'GB1234567890', swift: 'CHASEGB' });
-                          } else {
-                            setPaymentDetails({ accountName: 'CRYPTO WALLET', accountNumber: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh' });
-                          }
-                        }}
-                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
-                      >
-                        <Zap size={12} /> Autofill
-                      </button>
-                      {paymentMethod !== 'crypto' && (
-                        <button 
-                          onClick={handleLinkAccount}
-                          disabled={loading}
-                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
-                        >
-                          <ShieldCheck size={12} /> Link Account
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {paymentMethod === 'card' && (
-                  <div className="space-y-4">
-                    <input 
-                      placeholder="Cardholder Name" 
-                      value={paymentDetails.accountName || ''}
-                      onChange={(e) => setPaymentDetails({...paymentDetails, accountName: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
-                    />
-                    <input 
-                      placeholder="Card Number" 
-                      value={paymentDetails.accountNumber || ''}
-                      onChange={(e) => setPaymentDetails({...paymentDetails, accountNumber: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        placeholder="MM/YY" 
-                        value={paymentDetails.expiry || ''}
-                        onChange={(e) => setPaymentDetails({...paymentDetails, expiry: e.target.value})}
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
-                      />
-                      <input 
-                        placeholder="CVC" 
-                        value={paymentDetails.cvc || ''}
-                        onChange={(e) => setPaymentDetails({...paymentDetails, cvc: e.target.value})}
-                        className="bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
-                      />
-                    </div>
-                  </div>
-                )}
-                {paymentMethod === 'paypal' && (
-                  <div className="space-y-4">
-                    <input 
-                      placeholder="PayPal Email Address" 
-                      type="email" 
-                      value={paymentDetails.accountNumber || ''}
-                      onChange={(e) => setPaymentDetails({...paymentDetails, accountNumber: e.target.value, accountName: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-bold">$</span>
+                    <input
+                      type="number"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(Math.max(1, Number(e.target.value)))}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     />
                   </div>
-                )}
-                {paymentMethod === 'bank' && (
-                  <div className="space-y-4">
-                    <input 
-                      placeholder="Account Holder Name" 
-                      value={paymentDetails.accountName || ''}
-                      onChange={(e) => setPaymentDetails({...paymentDetails, accountName: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
-                    />
-                    <input 
-                      placeholder="IBAN / Account Number" 
-                      value={paymentDetails.accountNumber || ''}
-                      onChange={(e) => setPaymentDetails({...paymentDetails, accountNumber: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3" 
-                    />
-                  </div>
-                )}
-                {paymentMethod === 'crypto' && (
-                  <div className="p-4 text-center bg-orange-500/10 border border-orange-500/20 rounded-2xl">
-                    <Bitcoin className="mx-auto mb-2 text-orange-500" size={32} />
-                    <p className="text-orange-500 text-sm font-medium">Send {formatCurrency(depositAmount)} to the generated BTC address.</p>
-                    <code className="block mt-4 p-2 bg-black/50 rounded text-[10px] break-all">bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</code>
-                    <input 
-                      placeholder="Your Wallet Address (for verification)" 
-                      value={paymentDetails.accountNumber || ''}
-                      onChange={(e) => setPaymentDetails({...paymentDetails, accountNumber: e.target.value, accountName: 'CRYPTO'})}
-                      className="w-full mt-4 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm" 
-                    />
-                  </div>
-                )}
-              </GlassCard>
-
-              {error && <p className="text-red-400 text-sm">{error}</p>}
-
-              {!pendingTransaction ? (
-                <div className="space-y-4">
-                  {paymentMethod === 'card' && (
-                    <Button 
-                      onClick={handleStripeDeposit} 
-                      loading={loading} 
-                      className="w-full py-5 text-xl rounded-2xl bg-blue-600 hover:bg-blue-500 border-blue-400"
-                    >
-                      PAY WITH STRIPE
-                    </Button>
-                  )}
                   <Button onClick={handleDeposit} loading={loading} className="w-full py-5 text-xl rounded-2xl" variant="secondary">
-                    {paymentMethod === 'card' ? 'MANUAL DEPOSIT' : 'INITIATE DEPOSIT'}
+                    CONTINUE TO PAYMENT
                   </Button>
-                </div>
+                </section>
               ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center">
-                    <p className="text-emerald-400 font-bold mb-1">DEPOSIT INITIATED!</p>
-                    <p className="text-white/50 text-xs">Please complete the payment on your {paymentMethod} app, then click below.</p>
+                <section className="space-y-8">
+                  <div className="text-center space-y-6">
+                    <label className="block text-sm font-medium text-white/50 uppercase tracking-wider">2. Scan QR & Pay {formatCurrency(depositAmount)}</label>
+                    
+                    <div className="mx-auto w-64 h-64 bg-white p-4 rounded-2xl shadow-2xl">
+                      <img 
+                        src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=kabirsahab96@okaxis&pn=CryptoRace&am=100&cu=INR" 
+                        alt="QR Code" 
+                        className="w-full h-full"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+
+                    <GlassCard className="text-left space-y-3">
+                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                        <span className="text-white/40 text-xs uppercase">Holder Name</span>
+                        <span className="font-bold">KABIR SAHAB</span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                        <span className="text-white/40 text-xs uppercase">Account Number</span>
+                        <span className="font-mono font-bold">919876543210</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/40 text-xs uppercase">IFSC Code</span>
+                        <span className="font-mono font-bold">PYTM0123456</span>
+                      </div>
+                    </GlassCard>
                   </div>
-                  <Button onClick={handleConfirmDeposit} loading={loading} className="w-full py-5 text-xl rounded-2xl bg-emerald-600 hover:bg-emerald-500 border-emerald-400">
-                    CONFIRM SUCCESSFUL DEPOSIT
-                  </Button>
-                </div>
+
+                  <div className="space-y-6">
+                    <label className="block text-sm font-medium text-white/50 uppercase tracking-wider">3. Submit Payment Proof</label>
+                    <div className="space-y-4">
+                      <input
+                        placeholder="Enter UTR / Transaction ID"
+                        value={utrNumber}
+                        onChange={(e) => setUtrNumber(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      />
+                      
+                      <div className="relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+                        <div className={cn(
+                          "w-full py-10 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all",
+                          proofImage ? "border-emerald-500/50 bg-emerald-500/5" : "border-white/10 bg-white/5 group-hover:border-white/20"
+                        )}>
+                          {proofImage ? (
+                            <>
+                              <ShieldCheck className="text-emerald-400" size={32} />
+                              <span className="text-emerald-400 font-bold">Image Attached</span>
+                            </>
+                          ) : (
+                            <>
+                              <ArrowRight className="text-white/20 rotate-90" size={32} />
+                              <span className="text-white/40">Click to upload payment screenshot</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+                    <Button onClick={handleSubmitProof} loading={loading} className="w-full py-5 text-xl rounded-2xl" variant="primary">
+                      SUBMIT FOR APPROVAL
+                    </Button>
+                    
+                    <button 
+                      onClick={() => setDepositStep('amount')}
+                      className="w-full text-white/40 hover:text-white text-sm transition-colors"
+                    >
+                      Change Amount
+                    </button>
+                  </div>
+                </section>
               )}
             </div>
           </motion.div>
@@ -1110,6 +936,14 @@ export default function App() {
               <Wallet size={18} className="text-emerald-400" />
               <span className="font-mono font-bold text-emerald-400">{formatCurrency(user?.balance || 0)}</span>
             </div>
+    {user?.role === 'admin' && (
+              <button 
+                onClick={() => navigate('/admin')}
+                className="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-600/30 transition-all"
+              >
+                ADMIN
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -1414,5 +1248,125 @@ export default function App() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// --- Main App ---
+
+export default function App() {
+  const [user, setUser] = useState<UserData | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [exchangeRate, setExchangeRate] = useState(1);
+  const [currency, setCurrency] = useState('USD');
+  const [currencySymbol, setCurrencySymbol] = useState('$');
+  const [appConfig, setAppConfig] = useState<{ stripeConfigured: boolean; gmailConfigured: boolean } | null>(null);
+
+  const currencies = [
+    { code: 'USD', symbol: '$', name: 'US Dollar' },
+    { code: 'EUR', symbol: '€', name: 'Euro' },
+    { code: 'GBP', symbol: '£', name: 'British Pound' },
+    { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+    { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+    { code: 'BRL', symbol: 'R$', name: 'Brazilian Real' },
+    { code: 'NGN', symbol: '₦', name: 'Nigerian Naira' },
+    { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee' },
+    { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
+    { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
+  ];
+
+  const fetchUser = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/user/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data);
+      } else {
+        localStorage.removeItem('token');
+        setToken(null);
+      }
+    } catch (e) {
+      localStorage.removeItem('token');
+      setToken(null);
+    }
+  };
+
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        const res = await fetch('https://open.er-api.com/v6/latest/USD');
+        const data = await res.json();
+        if (data.rates && data.rates[currency]) {
+          setExchangeRate(data.rates[currency]);
+          const currObj = currencies.find(c => c.code === currency);
+          if (currObj) setCurrencySymbol(currObj.symbol);
+        }
+      } catch (e) {
+        console.error("Failed to fetch exchange rates", e);
+      }
+    };
+    fetchExchangeRates();
+  }, [currency]);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      // Fetch config
+      try {
+        const configRes = await fetch('/api/config');
+        if (configRes.ok) {
+          setAppConfig(await configRes.json());
+        }
+      } catch (e) {
+        console.error("Failed to fetch config", e);
+      }
+
+      if (!token) {
+        try {
+          const res = await fetch('/api/auth/guest', { method: 'POST' });
+          const data = await res.json();
+          if (res.ok) {
+            localStorage.setItem('token', data.token);
+            setToken(data.token);
+            setUser(data.user);
+          }
+        } catch (e) {
+          console.error("Guest login failed", e);
+        }
+      } else {
+        fetchUser();
+      }
+    };
+    initAuth();
+  }, [token]);
+
+  const formatCurrency = (amount: number) => {
+    const converted = amount * exchangeRate;
+    return `${currencySymbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={
+          <Dashboard 
+            user={user} 
+            token={token} 
+            formatCurrency={formatCurrency} 
+            fetchUser={fetchUser} 
+            setUser={setUser} 
+            appConfig={appConfig}
+            currency={currency}
+            setCurrency={setCurrency}
+            setCurrencySymbol={setCurrencySymbol}
+            currencySymbol={currencySymbol}
+            exchangeRate={exchangeRate}
+            currencies={currencies}
+          />
+        } />
+        <Route path="/admin" element={<AdminPanel token={token} user={user} formatCurrency={formatCurrency} />} />
+      </Routes>
+    </Router>
   );
 }
