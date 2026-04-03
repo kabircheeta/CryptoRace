@@ -8,7 +8,7 @@ import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
-import firebaseConfig from './firebase-applet-config.json' assert { type: 'json' };
+import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
 
 dotenv.config();
 
@@ -17,9 +17,7 @@ const __dirname = path.dirname(__filename);
 
 // Initialize Firebase Admin
 admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: firebaseConfig.projectId,
-  } as any),
+  projectId: firebaseConfig.projectId,
 });
 
 const db = admin.firestore();
