@@ -14,6 +14,11 @@ const CanvasRace: React.FC<CanvasRaceProps> = ({ isRacing, winner, paths, onFini
   const requestRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
   const particlesRef = useRef<any[]>([]);
+  const pathsRef = useRef(paths);
+
+  useEffect(() => {
+    pathsRef.current = paths;
+  }, [paths]);
 
   const DURATION = 5000; // 5 seconds race
 
@@ -85,9 +90,10 @@ const CanvasRace: React.FC<CanvasRaceProps> = ({ isRacing, winner, paths, onFini
     let btcProgress = 0;
     let ethProgress = 0;
 
-    if (isRacing && paths) {
+    if (isRacing && pathsRef.current) {
+      const p = pathsRef.current;
       // Interpolate progress from paths
-      const stepCount = paths.BTC.length - 1;
+      const stepCount = p.BTC.length - 1;
       const currentStep = progress * stepCount;
       const index = Math.floor(currentStep);
       const frac = currentStep - index;
@@ -99,12 +105,12 @@ const CanvasRace: React.FC<CanvasRaceProps> = ({ isRacing, winner, paths, onFini
         return start + (end - start) * frac;
       };
 
-      const btcRaw = getInterpolatedPos(paths.BTC);
-      const ethRaw = getInterpolatedPos(paths.ETH);
+      const btcRaw = getInterpolatedPos(p.BTC);
+      const ethRaw = getInterpolatedPos(p.ETH);
 
       // Normalize progress relative to the final winner's position
       // We want the winner to reach 1.0 exactly at progress 1.0
-      const maxFinalPos = Math.max(paths.BTC[stepCount], paths.ETH[stepCount]);
+      const maxFinalPos = Math.max(p.BTC[stepCount], p.ETH[stepCount]);
       
       btcProgress = btcRaw / maxFinalPos * progress;
       ethProgress = ethRaw / maxFinalPos * progress;

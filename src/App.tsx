@@ -107,8 +107,8 @@ function Dashboard({
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingTransaction, setPendingTransaction] = useState<number | null>(null);
-  const [depositStep, setDepositStep] = useState<'amount' | 'proof'>('amount');
+  const [pendingTransaction, setPendingTransaction] = useState<string | null>(localStorage.getItem('pendingTransaction'));
+  const [depositStep, setDepositStep] = useState<'amount' | 'proof'>(localStorage.getItem('pendingTransaction') ? 'proof' : 'amount');
   const [utrNumber, setUtrNumber] = useState('');
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [paymentDetails, setPaymentDetails] = useState<any>({});
@@ -299,6 +299,10 @@ function Dashboard({
   };
 
   const handleDeposit = async () => {
+    if (depositAmount < 1) {
+      setError("Minimum deposit is $1");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/user/deposit/initiate', {
@@ -312,20 +316,21 @@ function Dashboard({
       const data = await res.json();
       if (res.ok) {
         setPendingTransaction(data.transactionId);
+        localStorage.setItem('pendingTransaction', data.transactionId);
         setDepositStep('proof');
         setError(null);
       } else {
         setError(data.error);
       }
     } catch (e) {
-      setError("Deposit failed");
+      setError("Deposit initiation failed");
     } finally {
       setLoading(false);
     }
   };
 
   const handleSubmitProof = async () => {
-    if (!utrNumber || !proofImage) {
+    if (!utrNumber || !proofImage || !pendingTransaction) {
       setError("Please provide UTR number and proof image");
       return;
     }
@@ -346,6 +351,7 @@ function Dashboard({
       const data = await res.json();
       if (res.ok) {
         setPendingTransaction(null);
+        localStorage.removeItem('pendingTransaction');
         setDepositStep('amount');
         setUtrNumber('');
         setProofImage(null);
@@ -389,6 +395,7 @@ function Dashboard({
       if (res.ok) {
         setUser(prev => prev ? { ...prev, balance: data.balance } : null);
         setPendingTransaction(null);
+        localStorage.removeItem('pendingTransaction');
         setPaymentDetails({});
         setView('dashboard');
         confetti({
@@ -849,6 +856,14 @@ function Dashboard({
 
                     <Button onClick={handleSubmitProof} loading={loading} className="w-full py-5 text-xl rounded-2xl" variant="primary">
                       SUBMIT FOR APPROVAL
+                    </Button>
+
+                    <Button 
+                      onClick={handleConfirmDeposit} 
+                      loading={loading} 
+                      className="w-full py-4 text-sm rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
+                    >
+                      I HAVE ALREADY PAID (CONFIRM)
                     </Button>
                     
                     <button 

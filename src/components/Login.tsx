@@ -76,7 +76,17 @@ export default function Login({ onLogin }: LoginProps) {
       await handleFirebaseLogin(result.user);
     } catch (err: any) {
       console.error('Google Login error:', err);
-      setError('Google login failed. Please try again.');
+      let message = 'Google login failed. Please try again.';
+      if (err.code === 'auth/popup-blocked') {
+        message = 'Popup blocked! Please allow popups for this site.';
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        message = 'Login popup was closed before completion.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        message = 'This domain is not authorized for Google Login. Please check Firebase console.';
+      } else if (err.message) {
+        message = `Error: ${err.message}`;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }

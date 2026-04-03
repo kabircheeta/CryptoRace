@@ -596,26 +596,40 @@ async function startServer() {
 
     try {
       const txRef = db.collection('users').doc(userId).collection('transactions').doc(transactionId);
-      const tx = await txRef.get();
+      const txDoc = await txRef.get();
       
-      if (!tx.exists || tx.data()?.status !== 'PENDING') {
-        return res.status(404).json({ error: 'Pending transaction not found' });
+      if (!txDoc.exists) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      const txData = txDoc.data();
+      if (txData?.status === 'COMPLETED') {
+        return res.json({ message: 'Already completed', balance: (await db.collection('users').doc(userId).get()).data()?.balance });
+      }
+
+      if (txData?.status !== 'PENDING' && txData?.status !== 'PROCESSING') {
+        return res.status(400).json({ error: 'Transaction cannot be confirmed in current state' });
       }
 
       await db.runTransaction(async (t) => {
         const userRef = db.collection('users').doc(userId);
         const userDoc = await t.get(userRef);
+        
         const currentBalance = userDoc.data()?.balance || 0;
-        const depositAmount = tx.data()?.amount || 0;
+        const amount = txData?.amount || 0;
 
-        t.update(userRef, { balance: currentBalance + depositAmount });
-        t.update(txRef, { status: 'COMPLETED' });
+        t.update(userRef, { balance: currentBalance + amount });
+        t.update(txRef, { 
+          status: 'COMPLETED',
+          confirmedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
       });
 
       const updatedUser = await db.collection('users').doc(userId).get();
-      res.json({ balance: updatedUser.data()?.balance, message: 'Deposit successful!' });
-    } catch (e) {
-      res.status(500).json({ error: 'Failed to confirm deposit' });
+      res.json({ message: 'Deposit confirmed', balance: updatedUser.data()?.balance });
+    } catch (e: any) {
+      console.error('Confirm deposit error:', e);
+      res.status(500).json({ error: e.message || 'Failed to confirm deposit' });
     }
   });
 

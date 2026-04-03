@@ -78,12 +78,12 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
     }
   };
 
-  const handleAdminAction = async (id: number, action: 'approve' | 'reject', type: 'deposit' | 'withdrawal') => {
+  const handleAdminAction = async (userId: string, id: string, action: 'approve' | 'reject', type: 'deposit' | 'withdrawal') => {
     setLoading(true);
     try {
       const endpoint = type === 'deposit' 
-        ? `/api/admin/deposits/${id}/${action}`
-        : `/api/admin/withdrawals/${id}/${action}`;
+        ? `/api/admin/deposits/${userId}/${id}/${action}`
+        : `/api/admin/withdrawals/${userId}/${id}/${action}`;
         
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -273,7 +273,7 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
                     {/* Actions Section */}
                     <div className="lg:col-span-3 p-6 bg-white/[0.01] flex flex-col justify-center gap-3">
                       <Button 
-                        onClick={() => handleAdminAction(deposit.id, 'approve', 'deposit')} 
+                        onClick={() => handleAdminAction(deposit.userId, deposit.id, 'approve', 'deposit')} 
                         loading={loading}
                         className="w-full bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/20 h-12 text-xs font-black tracking-widest"
                       >
@@ -281,7 +281,7 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
                         APPROVE DEPOSIT
                       </Button>
                       <Button 
-                        onClick={() => handleAdminAction(deposit.id, 'reject', 'deposit')} 
+                        onClick={() => handleAdminAction(deposit.userId, deposit.id, 'reject', 'deposit')} 
                         loading={loading}
                         variant="danger"
                         className="w-full h-12 text-xs font-black tracking-widest"
@@ -348,7 +348,7 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
                     {/* Actions Section */}
                     <div className="lg:col-span-3 p-6 bg-white/[0.01] flex flex-col justify-center gap-3 border-l border-white/5">
                       <Button 
-                        onClick={() => handleAdminAction(withdrawal.id, 'approve', 'withdrawal')} 
+                        onClick={() => handleAdminAction(withdrawal.userId, withdrawal.id, 'approve', 'withdrawal')} 
                         loading={loading}
                         className="w-full bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/20 h-12 text-xs font-black tracking-widest"
                       >
@@ -356,7 +356,7 @@ export default function AdminPanel({ token, user, formatCurrency }: AdminPanelPr
                         MARK AS PAID
                       </Button>
                       <Button 
-                        onClick={() => handleAdminAction(withdrawal.id, 'reject', 'withdrawal')} 
+                        onClick={() => handleAdminAction(withdrawal.userId, withdrawal.id, 'reject', 'withdrawal')} 
                         loading={loading}
                         variant="danger"
                         className="w-full h-12 text-xs font-black tracking-widest"
